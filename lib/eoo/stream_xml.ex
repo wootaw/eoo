@@ -61,6 +61,7 @@ defmodule Eoo.StreamXML do
     case :binary.match(data, open_tag, scope: {offset, byte_size(data) - offset}) do
       {pos, _len} ->
         after_tag = pos + byte_size(open_tag)
+
         if after_tag < byte_size(data) do
           case :binary.at(data, after_tag) do
             c when c in [?\s, ?/, ?>, ?\n, ?\r, ?\t] -> pos
@@ -69,7 +70,9 @@ defmodule Eoo.StreamXML do
         else
           pos
         end
-      :nomatch -> nil
+
+      :nomatch ->
+        nil
     end
   end
 
@@ -77,11 +80,15 @@ defmodule Eoo.StreamXML do
   defp find_closing(data, start, close_tag, depth) do
     # Search for next < character
     case find_next_tag(data, start) do
-      nil -> nil
+      nil ->
+        nil
+
       {:open, tag_end} ->
         find_closing(data, tag_end, close_tag, depth + 1)
+
       {:close, tag_end} when depth > 0 ->
         find_closing(data, tag_end, close_tag, depth - 1)
+
       {:close, tag_end} when depth == 0 ->
         tag_end
     end
@@ -93,6 +100,7 @@ defmodule Eoo.StreamXML do
     case :binary.match(data, "<", scope: {offset, byte_size(data) - offset}) do
       {pos, _} ->
         next = pos + 1
+
         if next < byte_size(data) do
           case :binary.at(data, next) do
             ?/ ->
@@ -101,6 +109,7 @@ defmodule Eoo.StreamXML do
                 {end_pos, _} -> {:close, end_pos + 1}
                 :nomatch -> nil
               end
+
             _ ->
               # Find end of opening tag (may include attributes)
               case find_tag_end(data, next) do
@@ -111,6 +120,7 @@ defmodule Eoo.StreamXML do
         else
           find_next_tag(data, next)
         end
+
       :nomatch ->
         nil
     end
@@ -139,6 +149,7 @@ defmodule Eoo.StreamXML do
   """
   def extract_cells(row_elem) do
     cells = extract_cell_elements(row_elem)
+
     Enum.map(cells, fn cell ->
       ref = attr_value(cell, "r")
       type = attr_value(cell, "t")
@@ -157,42 +168,52 @@ defmodule Eoo.StreamXML do
   end
 
   defp extract_value({:xmlElement, _, _, _, _, _, _, _, children, _, _, _}) do
-    v_elem = Enum.find(children, fn
-      {:xmlElement, :v, _, _, _, _, _, _, _, _, _, _} -> true
-      _ -> false
-    end)
+    v_elem =
+      Enum.find(children, fn
+        {:xmlElement, :v, _, _, _, _, _, _, _, _, _, _} -> true
+        _ -> false
+      end)
 
     case v_elem do
       {:xmlElement, _, _, _, _, _, _, _, vchildren, _, _, _} ->
-        text = Enum.find(vchildren, fn
-          {:xmlText, _, _, _, _, _} -> true
-          _ -> false
-        end)
+        text =
+          Enum.find(vchildren, fn
+            {:xmlText, _, _, _, _, _} -> true
+            _ -> false
+          end)
+
         case text do
           {:xmlText, _, _, _, t, _} -> List.to_string(t)
           _ -> nil
         end
-      _ -> nil
+
+      _ ->
+        nil
     end
   end
 
   defp extract_formula({:xmlElement, _, _, _, _, _, _, _, children, _, _, _}) do
-    f_elem = Enum.find(children, fn
-      {:xmlElement, :f, _, _, _, _, _, _, _, _, _, _} -> true
-      _ -> false
-    end)
+    f_elem =
+      Enum.find(children, fn
+        {:xmlElement, :f, _, _, _, _, _, _, _, _, _, _} -> true
+        _ -> false
+      end)
 
     case f_elem do
       {:xmlElement, _, _, _, _, _, _, _, fchildren, _, _, _} ->
-        text = Enum.find(fchildren, fn
-          {:xmlText, _, _, _, _, _} -> true
-          _ -> false
-        end)
+        text =
+          Enum.find(fchildren, fn
+            {:xmlText, _, _, _, _, _} -> true
+            _ -> false
+          end)
+
         case text do
           {:xmlText, _, _, _, t, _} -> List.to_string(t)
           _ -> nil
         end
-      _ -> nil
+
+      _ ->
+        nil
     end
   end
 
@@ -200,7 +221,9 @@ defmodule Eoo.StreamXML do
     Enum.find_value(attrs, fn
       {:xmlAttribute, aname, _, _, _, _, _, _, value, _} ->
         if to_string(aname) == name and is_list(value), do: List.to_string(value)
-      _ -> nil
+
+      _ ->
+        nil
     end)
   end
 end

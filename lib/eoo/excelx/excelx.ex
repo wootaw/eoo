@@ -2,25 +2,37 @@ defmodule Eoo.Excelx do
   @moduledoc """
   XLSX / XLSM 文件解析器。
 
-  实现了 `Eoo.Base` 行为。
+  实现了 `Eoo.Base` 行为，提供完整的电子表格读取功能。
+
+  ## 打开文件
+
+      {:ok, xlsx} = Eoo.Excelx.open("file.xlsx")
+
+  ## 选项
+
+  | 选项 | 类型 | 默认 | 说明 |
+  |------|------|------|------|
+  | `:expand_merged_ranges` | boolean | false | 展开合并单元格，所有单元格共享同一值 |
+  | `:only_visible_sheets` | boolean | false | 只加载可见工作表 |
+  | `:cell_max` | integer | nil | 最大单元格数，超出则报错 |
+  | `:no_hyperlinks` | boolean | false | 跳过超链接解析（节省内存） |
+  | `:empty_cell` | boolean | false | 返回空单元格对象而非 nil |
+  | `:packed` | :zip | nil | 压缩包模式 |
+  | `:file_warning` | atom | :error | 扩展名不匹配时 :error/:warning/:ignore |
+  | `:tmpdir_root` | String | nil | 临时目录根路径 |
+
+  ## 流式读取
+
+      xlsx |> Eoo.Excelx.each_row_streaming(max_rows: 1000, offset: 1) |> Enum.each(fn row ->
+        IO.inspect(row)
+      end)
 
   ## 示例
 
       {:ok, xlsx} = Eoo.Excelx.open("file.xlsx")
-      xlsx.sheets()              # => ["Sheet1", "Sheet2"]
-      xlsx.cell(1, 1)            # => 左上角单元格值
-      xlsx.row(1)                # => 第一行
-
-  ## 选项
-
-    - `:expand_merged_ranges` - 展开合并单元格 (默认 false)
-    - `:only_visible_sheets` - 只加载可见工作表 (默认 false)
-    - `:cell_max` - 单元格数量上限检查
-    - `:no_hyperlinks` - 跳过超链接解析 (默认 false)
-    - `:empty_cell` - 返回空单元格对象 (默认 false)
-    - `:packed` - :zip 表示压缩包
-    - `:file_warning` - :error | :warning | :ignore
-    - `:tmpdir_root` - 临时目录根路径
+      Eoo.Excelx.sheets(xlsx)   # => ["Sheet1", "Sheet2"]
+      Eoo.Excelx.cell(xlsx, 1, 1)  # => 左上角单元格值
+      Eoo.Excelx.row(xlsx, 1)      # => 第一行
   """
 
   @behaviour Eoo.Base
@@ -59,7 +71,13 @@ defmodule Eoo.Excelx do
 
       # 文件类型检查
       unless is_stream?(filename_or_stream) do
-        file_type_check(filename_or_stream, [".xlsx", ".xlsm"], "an Excel 2007", file_warning, packed)
+        file_type_check(
+          filename_or_stream,
+          [".xlsx", ".xlsm"],
+          "an Excel 2007",
+          file_warning,
+          packed
+        )
       end
 
       basename = find_basename(filename_or_stream)
@@ -83,14 +101,17 @@ defmodule Eoo.Excelx do
 
       {sheet_names, sheets, sheets_by_name, _} =
         Enum.reduce(Enum.with_index(sheet_defs), {[], [], %{}, 0}, fn {sheet_def, index},
-                                                                      {names, sheet_list, by_name, _} ->
+                                                                      {names, sheet_list, by_name,
+                                                                       _} ->
           if Keyword.get(options, :only_visible_sheets, false) and
                Map.get(sheet_def, :state) == "hidden" do
             {names, sheet_list, by_name, index}
           else
             sheet_name = Map.get(sheet_def, :name, "Sheet#{index + 1}")
             sheet = Eoo.Excelx.Sheet.new(sheet_name, shared, index, sheet_options)
-            {[sheet_name | names], [sheet | sheet_list], Map.put(by_name, sheet_name, sheet), index}
+
+            {[sheet_name | names], [sheet | sheet_list], Map.put(by_name, sheet_name, sheet),
+             index}
           end
         end)
 
@@ -108,11 +129,15 @@ defmodule Eoo.Excelx do
       # 检查 cell_max
       if cell_max do
         dims = Eoo.Excelx.Sheet.dimensions(hd(result.sheets))
+
         if dims do
           cell_count = Eoo.Utils.num_cells_in_range(dims)
+
           if cell_count > cell_max do
             cleanup_tmpdir(tmpdir)
-            raise Eoo.ExceedsMaxError, message: "Excel file exceeds cell maximum: #{cell_count} > #{cell_max}"
+
+            raise Eoo.ExceedsMaxError,
+              message: "Excel file exceeds cell maximum: #{cell_count} > #{cell_max}"
           end
         end
       end
@@ -122,12 +147,15 @@ defmodule Eoo.Excelx do
       e -> {:error, e}
     end
   end
+
   # ── Eoo.Base 回调 ───────────────────────────────────────
 
   @impl true
+  @spec sheets(t()) :: [String.t()]
   def sheets(%__MODULE__{sheet_names: names}), do: names
 
   @impl true
+  @spec default_sheet(t()) :: String.t()
   def default_sheet(%__MODULE__{default_sheet_name: nil} = xlsx), do: hd(xlsx.sheet_names)
   def default_sheet(%__MODULE__{default_sheet_name: name}), do: name
 
@@ -233,6 +261,7 @@ defmodule Eoo.Excelx do
 
     # 创建新单元格对象
     coord_tuple = {r, c}
+
     new_cell = %Eoo.Excelx.Cell.String{
       value: value,
       formula: nil,
@@ -245,7 +274,11 @@ defmodule Eoo.Excelx do
     cells_mod = Eoo.Excelx.Sheet.cells(sheet_mod)
     new_cells = Map.put(cells_mod.cells_cache, {r, c}, new_cell)
     # 由于目前返回 :ok，我们只是更新内部状态
-    {:ok, %{xlsx | sheets_by_name: Map.put(xlsx.sheets_by_name, s, %{sheet_mod | cells_cache: new_cells})}}
+    {:ok,
+     %{
+       xlsx
+       | sheets_by_name: Map.put(xlsx.sheets_by_name, s, %{sheet_mod | cells_cache: new_cells})
+     }}
   end
 
   @impl true
@@ -254,6 +287,7 @@ defmodule Eoo.Excelx do
   end
 
   @impl true
+  @spec close(t()) :: :ok
   def close(%__MODULE__{tmpdir: tmpdir}) do
     cleanup_tmpdir(tmpdir)
     :ok
@@ -262,6 +296,7 @@ defmodule Eoo.Excelx do
   # XLSX 特有方法
 
   @impl true
+  @spec formula(t(), pos_integer(), pos_integer(), String.t() | nil) :: String.t() | nil
   def formula(%__MODULE__{} = xlsx, row, col, sheet \\ nil) do
     s = sheet_name(xlsx, sheet)
     sheet_mod = sheet_for(xlsx, s)
@@ -303,6 +338,7 @@ defmodule Eoo.Excelx do
   end
 
   @impl true
+  @spec hyperlink(t(), pos_integer(), pos_integer(), String.t() | nil) :: String.t() | nil
   def hyperlink(%__MODULE__{} = xlsx, row, col, sheet \\ nil) do
     s = sheet_name(xlsx, sheet)
     sheet_mod = sheet_for(xlsx, s)
@@ -317,6 +353,7 @@ defmodule Eoo.Excelx do
   end
 
   @impl true
+  @spec comment(t(), pos_integer(), pos_integer(), String.t() | nil) :: String.t() | nil
   def comment(%__MODULE__{} = xlsx, row, col, sheet \\ nil) do
     s = sheet_name(xlsx, sheet)
     sheet_mod = sheet_for(xlsx, s)
@@ -336,6 +373,7 @@ defmodule Eoo.Excelx do
   end
 
   @impl true
+  @spec label(t(), String.t()) :: {pos_integer(), pos_integer(), String.t()} | nil
   def label(%__MODULE__{shared: shared}, name) do
     wb = Eoo.Excelx.Shared.workbook(shared)
     defined_names = Eoo.Excelx.Workbook.defined_names(wb)
@@ -347,6 +385,7 @@ defmodule Eoo.Excelx do
   end
 
   @impl true
+  @spec labels(t()) :: [{String.t(), {pos_integer(), pos_integer(), String.t()}}]
   def labels(%__MODULE__{shared: shared}) do
     wb = Eoo.Excelx.Shared.workbook(shared)
     defined_names = Eoo.Excelx.Workbook.defined_names(wb)
@@ -421,6 +460,7 @@ defmodule Eoo.Excelx do
     - `:pad_cells` - 是否用 nil 填充空白单元格（默认 false）
     - `:sheet` - 工作表名
   """
+  @spec each_row_streaming(t(), keyword()) :: Enumerable.t()
   def each_row_streaming(%__MODULE__{} = xlsx, opts \\ []) do
     s = Keyword.get(opts, :sheet, default_sheet(xlsx))
     sheet_mod = sheet_for(xlsx, s)
@@ -440,6 +480,7 @@ defmodule Eoo.Excelx do
       |> Stream.filter(fn {_xml, idx} -> idx > offset end)
       |> Stream.transform(nil, fn {row_xml, idx}, _acc ->
         halt? = max_rows != nil and idx > offset + max_rows
+
         if halt? do
           {:halt, nil}
         else
@@ -455,7 +496,7 @@ defmodule Eoo.Excelx do
 
     cols = raw |> Enum.map(fn c -> extract_col(c.ref) end) |> Enum.reject(&is_nil/1)
     first = if cols == [], do: 1, else: Enum.min(cols)
-    last  = if cols == [], do: 0, else: Enum.max(cols)
+    last = if cols == [], do: 0, else: Enum.max(cols)
 
     cell_map =
       raw
@@ -471,6 +512,7 @@ defmodule Eoo.Excelx do
   end
 
   defp extract_col(nil), do: nil
+
   defp extract_col(ref) do
     %{column: c} = Eoo.Utils.extract_coordinate(ref)
     c
@@ -503,10 +545,11 @@ defmodule Eoo.Excelx do
       nil ->
         idx = Enum.find_index(sheets, fn s -> s.name == sheet_name end)
         if idx, do: Enum.at(sheets, idx), else: nil
-      s -> s
+
+      s ->
+        s
     end
   end
-
 
   defp find_basename(path) when is_binary(path) do
     if Eoo.Utils.uri?(path) do
@@ -564,12 +607,12 @@ defmodule Eoo.Excelx do
     end
   end
 
-
   defp process_zipfile(filename, _shared, tmpdir) when is_binary(filename) do
     case :zip.unzip(String.to_charlist(filename), [{:cwd, String.to_charlist(tmpdir)}]) do
       {:ok, _files} -> :ok
       {:error, _} -> :ok
     end
+
     rename_extracted_files(tmpdir)
   end
 
@@ -580,8 +623,17 @@ defmodule Eoo.Excelx do
     ws_dir = Path.join(xl_dir, "worksheets")
 
     rename_if_exists(Path.join(xl_dir, "workbook.xml"), Path.join(tmpdir, "roo_workbook.xml"))
-    rename_if_exists(Path.join(tmpdir, "xl/_rels/workbook.xml.rels"), Path.join(tmpdir, "roo_workbook.xml.rels"))
-    rename_if_exists(Path.join(xl_dir, "sharedStrings.xml"), Path.join(tmpdir, "roo_sharedStrings.xml"))
+
+    rename_if_exists(
+      Path.join(tmpdir, "xl/_rels/workbook.xml.rels"),
+      Path.join(tmpdir, "roo_workbook.xml.rels")
+    )
+
+    rename_if_exists(
+      Path.join(xl_dir, "sharedStrings.xml"),
+      Path.join(tmpdir, "roo_sharedStrings.xml")
+    )
+
     rename_if_exists(Path.join(xl_dir, "styles.xml"), Path.join(tmpdir, "roo_styles.xml"))
 
     if File.exists?(ws_dir) do
@@ -594,6 +646,7 @@ defmodule Eoo.Excelx do
     end
 
     rels_dir = Path.join(ws_dir, "_rels")
+
     if File.exists?(rels_dir) do
       File.ls!(rels_dir)
       |> Enum.filter(&String.match?(&1, ~r/^sheet\d+\.xml\.rels$/))
@@ -602,7 +655,6 @@ defmodule Eoo.Excelx do
         rename_if_exists(Path.join(rels_dir, fname), Path.join(tmpdir, "roo_rels#{idx}"))
       end)
     end
-
 
     # Handle comments files (xl/comments1.xml etc.)
     for i <- 1..20 do
@@ -646,14 +698,13 @@ defmodule Eoo.Excelx do
     _ -> false
   end
 
-
   defp cell_empty?(cell) do
     mod = Map.get(cell, :__struct__)
+
     if mod && function_exported?(mod, :empty?, 1) do
       mod.empty?(cell)
     else
       false
     end
   end
-
 end

@@ -88,9 +88,11 @@ defmodule Eoo.XML do
 
   def children_by_tag({:xmlElement, _name, _, _, _, _, _, _, children, _, _, _}, tag) do
     tag_atom = String.to_atom(to_string(tag))
+
     Enum.filter(children, fn
       {:xmlElement, child_name, _, _, _, _, _, _, _, _, _, _} ->
         child_name == tag_atom
+
       _ ->
         false
     end)
@@ -108,8 +110,8 @@ defmodule Eoo.XML do
     end)
   end
 
-
   def children(_), do: []
+
   @doc """
   获取指定标签名的第一个子元素文本。
   """
@@ -119,7 +121,6 @@ defmodule Eoo.XML do
     |> List.first()
     |> text()
   end
-
 
   @doc """
   获取元素名（原子转字符串）。
@@ -146,7 +147,8 @@ defmodule Eoo.XML do
 
   defp find_attr_value([], _name), do: nil
 
-  defp find_attr_value([{:xmlAttribute, aname, _, _, _, _, _, _, value, _} | rest], attr_name) when is_list(value) do
+  defp find_attr_value([{:xmlAttribute, aname, _, _, _, _, _, _, value, _} | rest], attr_name)
+       when is_list(value) do
     if to_string(aname) == attr_name do
       List.to_string(value)
     else

@@ -28,6 +28,7 @@ defmodule Eoo.MixProject do
   defp deps do
     [
       # 零外部依赖 — 使用 Erlang/OTP 内置模块 (:xmerl, :zip, :crypto)
+      # {:ex_doc, "~> 0.34", only: :dev, runtime: false}  # 用于生成 HTML 文档
     ]
   end
 
@@ -38,14 +39,18 @@ defmodule Eoo.MixProject do
       links: %{
         "GitHub" => "https://github.com/roo-rb/eoo",
         "Original Roo (Ruby)" => "https://github.com/roo-rb/roo"
-      }
+      },
+      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE)
     ]
   end
 
   defp docs do
     [
       main: "Eoo",
-      extras: ["README.md", "CHANGELOG.md"]
+      extras: ["README.md", "CHANGELOG.md"],
+      source_url: "https://github.com/roo-rb/eoo",
+      source_ref: "v#{@version}",
+      formatters: ["html"]
     ]
   end
 end

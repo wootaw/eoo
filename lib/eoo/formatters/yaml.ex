@@ -12,6 +12,7 @@ defmodule Eoo.Formatters.YAML do
     - `:from_column` / `:to_column` - 列范围
     - `:prefix` - 额外前缀字段映射
   """
+  @spec to_yaml(term(), keyword()) :: String.t()
   def to_yaml(spreadsheet, opts \\ []) do
     m = spreadsheet.__struct__
     sheet = Keyword.get(opts, :sheet, apply(m, :default_sheet, [spreadsheet]))
@@ -26,25 +27,30 @@ defmodule Eoo.Formatters.YAML do
     else
       lines = ["--- \n"]
 
-      lines = for row <- from_row..to_row, col <- from_col..to_col,
-                  not apply(m, :empty?, [spreadsheet, row, col, sheet]),
-                  reduce: lines do
-        acc ->
-          value = apply(m, :cell, [spreadsheet, row, col, sheet])
-          celltype = apply(m, :celltype, [spreadsheet, row, col, sheet])
-          display_val = if celltype == :time and is_integer(value),
-            do: Eoo.Formatters.Base.integer_to_timestring(value),
-            else: value
+      lines =
+        for row <- from_row..to_row,
+            col <- from_col..to_col,
+            not apply(m, :empty?, [spreadsheet, row, col, sheet]),
+            reduce: lines do
+          acc ->
+            value = apply(m, :cell, [spreadsheet, row, col, sheet])
+            celltype = apply(m, :celltype, [spreadsheet, row, col, sheet])
 
-          acc ++ [
-            "cell_#{row}_#{col}: \n",
-            Enum.map(prefix, fn {k, v} -> "  #{k}: #{v} \n" end),
-            "  row: #{row} \n",
-            "  col: #{col} \n",
-            "  celltype: #{celltype} \n",
-            "  value: #{display_val} \n"
-          ]
-      end
+            display_val =
+              if celltype == :time and is_integer(value),
+                do: Eoo.Formatters.Base.integer_to_timestring(value),
+                else: value
+
+            acc ++
+              [
+                "cell_#{row}_#{col}: \n",
+                Enum.map(prefix, fn {k, v} -> "  #{k}: #{v} \n" end),
+                "  row: #{row} \n",
+                "  col: #{col} \n",
+                "  celltype: #{celltype} \n",
+                "  value: #{display_val} \n"
+              ]
+        end
 
       lines |> List.flatten() |> Enum.join("")
     end

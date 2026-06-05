@@ -13,6 +13,7 @@ defmodule Eoo.Excelx.Images do
   def list(%__MODULE__{list: lst}), do: lst
 
   defp extract_images_names(%__MODULE__{path: nil}), do: %{}
+
   defp extract_images_names(%__MODULE__{path: path}) do
     unless File.exists?(path) do
       %{}
@@ -36,8 +37,10 @@ defmodule Eoo.Excelx.Images do
     acc = if to_string(name) == tag, do: acc ++ [elem], else: acc
     Enum.reduce(children, acc, fn c, a -> do_find(c, tag, a) end)
   end
+
   defp do_find(list, tag, acc) when is_list(list) do
     Enum.reduce(list, acc, fn c, a -> do_find(c, tag, a) end)
   end
+
   defp do_find(_, _, acc), do: acc
 end

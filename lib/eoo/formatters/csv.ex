@@ -14,6 +14,7 @@ defmodule Eoo.Formatters.CSV do
 
   如果提供文件名则写入文件，否则返回字符串。
   """
+  @spec to_csv(term(), String.t() | nil, keyword()) :: String.t() | :ok
   def to_csv(spreadsheet, filename \\ nil, opts \\ []) do
     separator = Keyword.get(opts, :separator, ",")
     m = spreadsheet.__struct__
@@ -48,7 +49,9 @@ defmodule Eoo.Formatters.CSV do
 
   defp cell_to_csv(m, spreadsheet, row, col, sheet, _separator) do
     cond do
-      apply(m, :empty?, [spreadsheet, row, col, sheet]) -> ""
+      apply(m, :empty?, [spreadsheet, row, col, sheet]) ->
+        ""
+
       true ->
         value = apply(m, :cell, [spreadsheet, row, col, sheet])
         celltype = apply(m, :celltype, [spreadsheet, row, col, sheet])
@@ -84,14 +87,17 @@ defmodule Eoo.Formatters.CSV do
     cond do
       is_binary(value) and value != "" ->
         ~s("#{String.replace(value, "\"", "\"\"")}")
+
       is_integer(value) ->
         Integer.to_string(value)
+
       is_float(value) ->
         if value == trunc(value) do
           Integer.to_string(trunc(value))
         else
           Float.to_string(value)
         end
+
       true ->
         to_string(value)
     end

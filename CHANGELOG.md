@@ -6,24 +6,36 @@ Eoo 初始发布 — Ruby Roo gem 的 Elixir 移植版。
 
 ### 支持的格式
 
-- **CSV** — 完整解析，含自定义分隔符和引号处理
-- **XLSX** — 完整解析，含公式、批注、标签、超链接、样式、合并单元格、流式读取
-- **ODS** — 完整解析（不含加密解密）
+- **CSV** — 完整解析，含自定义分隔符和引号字段处理
+- **XLSX / XLSM** — 完整解析，含公式、批注、标签、超链接、样式、合并单元格、流式行读取
+- **ODS** — 完整解析，含公式、标签、字体、**AES-256-CBC + PBKDF2 加密解密**
 
-### API
+### 通用 API
 
-- `Eoo.Spreadsheet.open/2` — 工厂模式自动检测格式
-- `Eoo.CSV.open/2` — CSV 解析器
-- `Eoo.Excelx.open/2` — XLSX 解析器
-- `Eoo.OpenOffice.open/2` — ODS 解析器
-- `Eoo.Base` 行为 — 统一的 cell/row/column/first_row/last_row 等接口
-- `Eoo.Excelx.each_row_streaming/2` — 流式行读取（offset/max_rows/pad_cells）
-- `Eoo.Formatters.CSV.to_csv/3` — CSV 导出
-- `Eoo.Formatters.YAML.to_yaml/2` — YAML 导出
-- `Eoo.Formatters.Matrix.to_matrix/2` — Matrix 导出
+- `Eoo.Spreadsheet.open/2` — 工厂模式自动检测格式（.xlsx / .xlsm / .ods / .csv）
+- `Eoo.Base.info/1` — 文档信息
+- `Eoo.Base.each/3` — 行迭代（支持表头映射）
+- `Eoo.Base.parse/2` — 结构化解析（支持 header_search）
+- `Eoo.Formatters.CSV.to_csv/3` — CSV 格式导出
+- `Eoo.Formatters.YAML.to_yaml/2` — YAML 格式导出（支持 prefix）
+- `Eoo.Formatters.Matrix.to_matrix/2` — Matrix（二维列表）导出
+
+### 流式读取
+
+- `Eoo.Excelx.each_row_streaming/2` — 流式行读取
+  - 支持 `:offset` 跳过行数
+  - 支持 `:max_rows` 限制行数
+  - 支持 `:pad_cells` 填充空白单元格
+
+### ODS 加密
+
+- AES-256-CBC 算法
+- PBKDF2 密钥派生（HMAC-SHA1）
+- SHA256 密码哈希
+- 兼容 LibreOffice 创建的加密 ODS 文件
 
 ### 技术特性
 
-- 零外部依赖，纯 Erlang/OTP 内置实现
+- **零外部依赖** — 纯 Erlang/OTP 内置实现（`:xmerl`、`:zip`、`:crypto`）
 - OTP 28 兼容（xmerl 12 元组格式、zip API 变更）
-- 33 测试用例，零编译警告
+- 36 测试用例，零编译警告

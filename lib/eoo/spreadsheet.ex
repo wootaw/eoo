@@ -21,7 +21,9 @@ defmodule Eoo.Spreadsheet do
     ext = extension_for(path, options)
 
     case Eoo.class_for_extension(ext) do
-      {:error, _} = err -> err
+      {:error, _} = err ->
+        err
+
       module ->
         module.open(path, options)
     end
@@ -46,8 +48,10 @@ defmodule Eoo.Spreadsheet do
     case Keyword.get(options, :extension) do
       ext when is_atom(ext) and not is_nil(ext) ->
         ext
+
       ext when is_binary(ext) ->
         ext |> String.trim_leading(".") |> String.downcase() |> String.to_atom()
+
       _ ->
         path
         |> Path.extname()

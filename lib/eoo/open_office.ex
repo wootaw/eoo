@@ -2,16 +2,27 @@ defmodule Eoo.OpenOffice do
   @moduledoc """
   OpenDocument Spreadsheet (.ods) 解析器。
 
-  支持 OpenOffice / LibreOffice 创建的 ODS 文件，包括加密文档。
+  支持 OpenOffice / LibreOffice 创建的 ODS 文件。
+  支持 **密码保护的加密 ODS 文档**（AES-256-CBC + PBKDF2）。
 
-  ## 示例
+  ## 普通文件
 
       {:ok, ods} = Eoo.OpenOffice.open("file.ods")
-      ods.sheets()
-      # => ["Sheet1", "Sheet2"]
+      Eoo.OpenOffice.cell(ods, 1, 1)
 
-      # 加密文档
-      {:ok, ods} = Eoo.OpenOffice.open("encrypted.ods", password: "secret")
+  ## 加密文件
+
+      {:ok, ods} = Eoo.OpenOffice.open("encrypted.ods", password: "mypassword")
+      Eoo.OpenOffice.cell(ods, 1, 1)
+      # => "Secret Data"
+
+  ## 加密算法
+
+  兼容 LibreOffice:
+  - 加密: AES-256-CBC
+  - 密钥派生: PBKDF2 (HMAC-SHA1)
+  - 密码哈希: SHA256
+  - 压缩: Raw Deflate (wbits = -15)
   """
 
   @behaviour Eoo.Base
@@ -37,8 +48,7 @@ defmodule Eoo.OpenOffice do
     first_rows: %{},
     last_rows: %{},
     first_cols: %{},
-    last_cols: %{},
-
+    last_cols: %{}
   ]
 
   @type t :: %__MODULE__{
@@ -62,8 +72,7 @@ defmodule Eoo.OpenOffice do
           first_rows: map(),
           last_rows: map(),
           first_cols: map(),
-          last_cols: map(),
-
+          last_cols: map()
         }
 
   @doc """
@@ -105,12 +114,15 @@ defmodule Eoo.OpenOffice do
         |> find_tables()
         |> Enum.map(fn table ->
           name = get_attr(table, "table:name") || get_attr(table, "name")
-          visible = if only_visible do
-            style_name = get_attr(table, "table:style-name")
-            Map.get(table_display, style_name, true)
-          else
-            true
-          end
+
+          visible =
+            if only_visible do
+              style_name = get_attr(table, "table:style-name")
+              Map.get(table_display, style_name, true)
+            else
+              true
+            end
+
           if visible, do: name, else: nil
         end)
         |> Enum.reject(&is_nil/1)
@@ -118,16 +130,17 @@ defmodule Eoo.OpenOffice do
       # 获取自动样式
       font_styles = read_auto_styles(doc)
 
-      {:ok, %__MODULE__{
-        filename: filename,
-        tmpdir: tmpdir,
-        options: options,
-        doc: doc,
-        sheet_names: sheet_names,
-        default_sheet_name: List.first(sheet_names),
-        font_styles: font_styles,
-        table_display: table_display
-      }}
+      {:ok,
+       %__MODULE__{
+         filename: filename,
+         tmpdir: tmpdir,
+         options: options,
+         doc: doc,
+         sheet_names: sheet_names,
+         default_sheet_name: List.first(sheet_names),
+         font_styles: font_styles,
+         table_display: table_display
+       }}
     rescue
       e ->
         if tmpdir, do: cleanup_tmpdir(tmpdir)
@@ -137,8 +150,10 @@ defmodule Eoo.OpenOffice do
 
   # ── Eoo.Base 回调 ───────────────────────────────────────
 
+  @spec sheets(t()) :: [String.t()]
   def sheets(ods), do: ods.sheet_names
 
+  @spec default_sheet(t()) :: String.t()
   def default_sheet(ods), do: ods.default_sheet_name || hd(ods.sheet_names)
 
   def default_sheet(ods, sheet) when is_binary(sheet) do
@@ -151,7 +166,10 @@ defmodule Eoo.OpenOffice do
 
   def default_sheet(ods, index) when is_integer(index) do
     s = Enum.at(ods.sheet_names, index)
-    if s, do: {:ok, %{ods | default_sheet_name: s}}, else: {:error, "sheet index #{index} not found"}
+
+    if s,
+      do: {:ok, %{ods | default_sheet_name: s}},
+      else: {:error, "sheet index #{index} not found"}
   end
 
   def cell(ods, row, col, sheet \\ nil) do
@@ -163,11 +181,16 @@ defmodule Eoo.OpenOffice do
     case Map.get(ods_with_cells.cell_types, {s, key}) do
       :date ->
         val = Map.get(ods_with_cells.cells, {s, key})
+
         if val do
           [yyyy, mm, dd] = String.split(to_string(val), "-")
-          {:ok, date} = Date.new(String.to_integer(yyyy), String.to_integer(mm), String.to_integer(dd))
+
+          {:ok, date} =
+            Date.new(String.to_integer(yyyy), String.to_integer(mm), String.to_integer(dd))
+
           date
         end
+
       _ ->
         Map.get(ods_with_cells.cells, {s, key})
     end
@@ -247,6 +270,7 @@ defmodule Eoo.OpenOffice do
   def empty?(ods, row, col, sheet \\ nil) do
     s = sheet_name(ods, sheet)
     val = cell(ods, row, col, s)
+
     is_nil(val) or (is_binary(val) and val == "") or
       row < (first_row(ods, s) || 0) or row > (last_row(ods, s) || 0) or
       col < (first_column(ods, s) || 0) or col > (last_column(ods, s) || 0)
@@ -257,7 +281,9 @@ defmodule Eoo.OpenOffice do
     {r, c} = Eoo.Utils.normalize(row, col)
     key = {s, {r, c}}
     ct = if is_integer(value), do: :float, else: :string
-    {:ok, %{ods | cells: Map.put(ods.cells, key, value), cell_types: Map.put(ods.cell_types, key, ct)}}
+
+    {:ok,
+     %{ods | cells: Map.put(ods.cells, key, value), cell_types: Map.put(ods.cell_types, key, ct)}}
   end
 
   def reload(ods) do
@@ -297,8 +323,9 @@ defmodule Eoo.OpenOffice do
     {r, c} = Eoo.Utils.normalize(row, col)
     key = {s, {r, c}}
 
-    style_name = Map.get(ods_with.styles, key) ||
-      Map.get(ods_with.style_defaults, {s, c - 1}) || "Default"
+    style_name =
+      Map.get(ods_with.styles, key) ||
+        Map.get(ods_with.style_defaults, {s, c - 1}) || "Default"
 
     Map.get(ods_with.font_styles, style_name)
   end
@@ -322,6 +349,7 @@ defmodule Eoo.OpenOffice do
   def label(ods, name) do
     read_labels(ods)
     label_info = Map.get(ods.labels, name)
+
     if label_info do
       {label_info.row, label_info.col, label_info.sheet}
     end
@@ -329,6 +357,7 @@ defmodule Eoo.OpenOffice do
 
   def labels(ods) do
     ods_with = read_labels(ods)
+
     ods_with.labels
     |> Enum.map(fn {name, info} -> {name, {info.row, info.col, info.sheet}} end)
   end
@@ -356,8 +385,10 @@ defmodule Eoo.OpenOffice do
       |> find_tables()
       |> Enum.reduce({ods, false}, fn table, {acc, _found_so_far} ->
         table_name = get_attr(table, "table:name") || get_attr(table, "name")
-        if table_name != sheet, do: {acc, false}, else:
-          {read_table_cells(acc, table, sheet), true}
+
+        if table_name != sheet,
+          do: {acc, false},
+          else: {read_table_cells(acc, table, sheet), true}
       end)
 
     new_ods
@@ -366,52 +397,61 @@ defmodule Eoo.OpenOffice do
   end
 
   defp read_table_cells(ods, table, sheet) do
-    {cells, cell_types, formulas, styles, style_defaults, comments, _current_row, first_row, last_row, first_col, last_col} =
+    {cells, cell_types, formulas, styles, style_defaults, comments, _current_row, first_row,
+     last_row, first_col, last_col} =
       table
       |> children_elements()
-      |> Enum.reduce({ods.cells, ods.cell_types, ods.formulas, ods.styles, ods.style_defaults, ods.comments,
-                      1, nil, nil, nil, nil}, fn elem, {c, ct, f, st, sdef, cm, cur_row, fr, lr, fc, lc} ->
-        case name(elem) do
-          "table-column" ->
-            default_style = get_attr(elem, "table:default-cell-style-name")
-            new_sdef = if default_style, do: Map.put(sdef, {sheet, fc || 0}, default_style), else: sdef
-            {c, ct, f, st, new_sdef, cm, cur_row, fr, lr, fc, lc}
+      |> Enum.reduce(
+        {ods.cells, ods.cell_types, ods.formulas, ods.styles, ods.style_defaults, ods.comments, 1,
+         nil, nil, nil, nil},
+        fn elem, {c, ct, f, st, sdef, cm, cur_row, fr, lr, fc, lc} ->
+          case name(elem) do
+            "table-column" ->
+              default_style = get_attr(elem, "table:default-cell-style-name")
 
-          "table-row" ->
-            repeated = get_attr_int(elem, "table:number-rows-repeated", 1)
+              new_sdef =
+                if default_style, do: Map.put(sdef, {sheet, fc || 0}, default_style), else: sdef
 
-            {new_c, new_ct, new_f, new_st, new_cm, cell_cols} =
-              elem
-              |> children_elements()
-              |> Enum.reduce({c, ct, f, st, cm, [1]}, fn cell, {cc, cct, cf, cst, ccm, cols} ->
-                if name(cell) != "table-cell" do
-                  {cc, cct, cf, cst, ccm, cols}
-                else
-                  {nc, nct, nf, nst, ncm, next_col} = process_ods_cell(cell, sheet, cur_row, cc, cct, cf, cst, ccm, hd(cols))
-                  {nc, nct, nf, nst, ncm, [next_col | cols]}
-                end
-              end)
-            all_cols = cell_cols
-            fc2 = fc || Enum.min(all_cols)
-            lc2 = max(lc || 0, Enum.max(all_cols) - 1)
-            {new_c, new_ct, new_f, new_st, sdef, new_cm,
-             cur_row + repeated,
-             fr || cur_row,
-             cur_row + repeated - 1,
-             fc2, lc2}
+              {c, ct, f, st, new_sdef, cm, cur_row, fr, lr, fc, lc}
 
-          _ ->
-            {c, ct, f, st, sdef, cm, cur_row, fr, lr, fc, lc}
+            "table-row" ->
+              repeated = get_attr_int(elem, "table:number-rows-repeated", 1)
+
+              {new_c, new_ct, new_f, new_st, new_cm, cell_cols} =
+                elem
+                |> children_elements()
+                |> Enum.reduce({c, ct, f, st, cm, [1]}, fn cell, {cc, cct, cf, cst, ccm, cols} ->
+                  if name(cell) != "table-cell" do
+                    {cc, cct, cf, cst, ccm, cols}
+                  else
+                    {nc, nct, nf, nst, ncm, next_col} =
+                      process_ods_cell(cell, sheet, cur_row, cc, cct, cf, cst, ccm, hd(cols))
+
+                    {nc, nct, nf, nst, ncm, [next_col | cols]}
+                  end
+                end)
+
+              all_cols = cell_cols
+              fc2 = fc || Enum.min(all_cols)
+              lc2 = max(lc || 0, Enum.max(all_cols) - 1)
+
+              {new_c, new_ct, new_f, new_st, sdef, new_cm, cur_row + repeated, fr || cur_row,
+               cur_row + repeated - 1, fc2, lc2}
+
+            _ ->
+              {c, ct, f, st, sdef, cm, cur_row, fr, lr, fc, lc}
+          end
         end
-      end)
+      )
 
-    %{ods |
-      cells: cells,
-      cell_types: cell_types,
-      formulas: formulas,
-      styles: styles,
-      style_defaults: style_defaults,
-      comments: comments
+    %{
+      ods
+      | cells: cells,
+        cell_types: cell_types,
+        formulas: formulas,
+        styles: styles,
+        style_defaults: style_defaults,
+        comments: comments
     }
     |> then(fn s -> %{s | first_rows: Map.put(s.first_rows, sheet, first_row)} end)
     |> then(fn s -> %{s | last_rows: Map.put(s.last_rows, sheet, last_row)} end)
@@ -432,34 +472,36 @@ defmodule Eoo.OpenOffice do
     {str_v, new_comments} = extract_cell_content(cell, sheet, row_num, col, comments)
 
     # Determine the value
-    final_value = cond do
-      value_type == "string" -> str_v
-      value_type == "float" -> parse_number(value, str_v)
-      value_type == "percentage" -> parse_float(value)
-      value_type == "date" -> value || get_attr(cell, "office:date-value")
-      value_type == "time" -> str_v
-      value_type == "boolean" -> get_attr(cell, "office:boolean-value")
-      true -> str_v || value
-    end
+    final_value =
+      cond do
+        value_type == "string" -> str_v
+        value_type == "float" -> parse_number(value, str_v)
+        value_type == "percentage" -> parse_float(value)
+        value_type == "date" -> value || get_attr(cell, "office:date-value")
+        value_type == "time" -> str_v
+        value_type == "boolean" -> get_attr(cell, "office:boolean-value")
+        true -> str_v || value
+      end
 
     # Cell type
-    final_type = cond do
-      formula_str -> :formula
-      value_type == "float" -> :float
-      value_type == "percentage" -> :percentage
-      value_type == "date" -> :date
-      value_type == "time" -> :time
-      value_type == "boolean" -> :boolean
-      true -> :string
-    end
+    final_type =
+      cond do
+        formula_str -> :formula
+        value_type == "float" -> :float
+        value_type == "percentage" -> :percentage
+        value_type == "date" -> :date
+        value_type == "time" -> :time
+        value_type == "boolean" -> :boolean
+        true -> :string
+      end
 
     # Set values for repeated columns
     {new_cells, new_types, new_formulas, new_styles} =
       Enum.reduce(0..(repeated - 1), {cells, cell_types, formulas, styles}, fn i,
                                                                                {cc, cct, cf, cst} ->
         key = {sheet, {row_num, col + i}}
-        {Map.put(cc, key, final_value),
-         Map.put(cct, key, final_type),
+
+        {Map.put(cc, key, final_value), Map.put(cct, key, final_type),
          if(formula_str, do: Map.put(cf, key, formula_str), else: cf),
          if(style_name, do: Map.put(cst, key, style_name), else: cst)}
       end)
@@ -478,16 +520,18 @@ defmodule Eoo.OpenOffice do
         case name(child) do
           "p" ->
             text = xml_text_content(child)
-            {sv <> (if sv == "", do: "", else: "\n") <> text, cm}
+            {sv <> if(sv == "", do: "", else: "\n") <> text, cm}
 
           "annotation" ->
-            annot_text = child
-            |> children_elements()
-            |> Enum.find(fn c -> name(c) == "p" end)
-            |> (fn
-              nil -> ""
-              p -> xml_text_content(p)
-            end).()
+            annot_text =
+              child
+              |> children_elements()
+              |> Enum.find(fn c -> name(c) == "p" end)
+              |> (fn
+                    nil -> ""
+                    p -> xml_text_content(p)
+                  end).()
+
             {sv, Map.put(cm, {sheet, {row_num, col}}, annot_text)}
 
           _ ->
@@ -508,18 +552,22 @@ defmodule Eoo.OpenOffice do
   defp find_all_elements(elem, tag) when is_tuple(elem) do
     do_find_all(elem, tag, [])
   end
+
   defp find_all_elements(list, tag) when is_list(list) do
     Enum.flat_map(list, &find_all_elements(&1, tag))
   end
+
   defp find_all_elements(_, _), do: []
 
   defp do_find_all({:xmlElement, name, _, _, _, _, _, _, children, _, _, _} = elem, tag, acc) do
     acc = if to_string(name) == tag, do: acc ++ [elem], else: acc
     Enum.reduce(children, acc, fn c, a -> do_find_all(c, tag, a) end)
   end
+
   defp do_find_all(list, tag, acc) when is_list(list) do
     Enum.reduce(list, acc, fn c, a -> do_find_all(c, tag, a) end)
   end
+
   defp do_find_all(_, _, acc), do: acc
 
   defp children_elements({:xmlElement, _, _, _, _, _, _, _, children, _, _, _}) do
@@ -528,6 +576,7 @@ defmodule Eoo.OpenOffice do
       _ -> false
     end)
   end
+
   defp children_elements(_), do: []
 
   defp name({:xmlElement, name, _, _, _, _, _, _, _, _, _, _}), do: to_string(name)
@@ -535,19 +584,25 @@ defmodule Eoo.OpenOffice do
 
   defp get_attr({:xmlElement, _, _, _, _, _, _, attrs, _, _, _, _}, attr_name) do
     attr_list = if is_list(attrs), do: attrs, else: []
+
     Enum.find_value(attr_list, fn
       {:xmlAttribute, aname, _, _, _, _, _, _, value, _} ->
         if to_string(aname) == attr_name and is_list(value) and value != [] do
           List.to_string(value)
         end
-      _ -> nil
+
+      _ ->
+        nil
     end)
   end
+
   defp get_attr(_, _), do: nil
 
   defp get_attr_int(elem, attr, default) do
     case get_attr(elem, attr) do
-      nil -> default
+      nil ->
+        default
+
       str ->
         case Integer.parse(str) do
           {n, _} -> n
@@ -557,10 +612,12 @@ defmodule Eoo.OpenOffice do
   end
 
   defp xml_text_content({:xmlElement, _, _, _, _, _, _, _, children, _, _, _}) do
-    texts = Enum.filter(children, fn
-      {:xmlText, _, _, _, _, _} -> true
-      _ -> false
-    end)
+    texts =
+      Enum.filter(children, fn
+        {:xmlText, _, _, _, _, _} -> true
+        _ -> false
+      end)
+
     Enum.map(texts, fn {:xmlText, _, _, _, t, _} -> List.to_string(t) end) |> Enum.join("")
   end
 
@@ -577,6 +634,7 @@ defmodule Eoo.OpenOffice do
   end
 
   defp parse_float(nil), do: nil
+
   defp parse_float(str) do
     {f, _} = Float.parse(str)
     f
@@ -593,24 +651,37 @@ defmodule Eoo.OpenOffice do
     |> find_all_elements("style")
     |> Enum.reduce(%{}, fn style_el, acc ->
       style_name = get_attr(style_el, "style:name") || get_attr(style_el, "name")
+
       if style_name do
         font = %Eoo.Font{}
 
-        font = style_el
-        |> children_elements()
-        |> Enum.reduce(font, fn prop_el, f ->
-          case name(prop_el) do
-            "text-properties" ->
-              f
-              |> Map.put(:bold, get_attr(prop_el, "fo:font-weight") == "bold" ||
-                                  get_attr(prop_el, "font-weight") == "bold")
-              |> Map.put(:italic, get_attr(prop_el, "fo:font-style") == "italic" ||
-                                   get_attr(prop_el, "font-style") == "italic")
-              |> Map.put(:underline, get_attr(prop_el, "style:text-underline-style") == "solid" ||
-                                      get_attr(prop_el, "text-underline-style") == "solid")
-            _ -> f
-          end
-        end)
+        font =
+          style_el
+          |> children_elements()
+          |> Enum.reduce(font, fn prop_el, f ->
+            case name(prop_el) do
+              "text-properties" ->
+                f
+                |> Map.put(
+                  :bold,
+                  get_attr(prop_el, "fo:font-weight") == "bold" ||
+                    get_attr(prop_el, "font-weight") == "bold"
+                )
+                |> Map.put(
+                  :italic,
+                  get_attr(prop_el, "fo:font-style") == "italic" ||
+                    get_attr(prop_el, "font-style") == "italic"
+                )
+                |> Map.put(
+                  :underline,
+                  get_attr(prop_el, "style:text-underline-style") == "solid" ||
+                    get_attr(prop_el, "text-underline-style") == "solid"
+                )
+
+              _ ->
+                f
+            end
+          end)
 
         Map.put(acc, style_name, font)
       else
@@ -636,19 +707,25 @@ defmodule Eoo.OpenOffice do
         |> Enum.reduce(%{}, fn ne, acc ->
           name = get_attr(ne, "table:name") || get_attr(ne, "name")
           range = get_attr(ne, "table:cell-range-address") || get_attr(ne, "cell-range-address")
+
           if name && range do
             case String.split(range, ".$", parts: 2) do
               [sheet_part, coords] ->
                 sheet_name = String.trim_leading(sheet_part, "$")
+
                 case String.split(coords, "$") do
                   [col_str, row_str] ->
                     row = String.to_integer(row_str)
                     col = Eoo.Utils.letter_to_number(col_str)
                     info = %{name: name, sheet: sheet_name, row: row, col: col}
                     Map.put(acc, name, info)
-                  _ -> acc
+
+                  _ ->
+                    acc
                 end
-              _ -> acc
+
+              _ ->
+                acc
             end
           else
             acc
@@ -672,7 +749,7 @@ defmodule Eoo.OpenOffice do
     # Also handle self-closing tags with namespaces
     |> String.replace(~r{<(\w+):([^ >]+)([^>]*)/>}, "<\\2\\3/>")
     # Handle attributes with namespace prefixes
-    |> String.replace(~r{ (\w+):(\w+)=}, " \\2=")
+    |> String.replace(~r{ (\w+):([\w-]+)=}, " \\2=")
   end
 
   # ── 临时文件 ────────────────────────────────────────────
@@ -691,6 +768,7 @@ defmodule Eoo.OpenOffice do
   end
 
   defp cleanup_tmpdir(nil), do: :ok
+
   defp cleanup_tmpdir(tmpdir) do
     File.rm_rf(tmpdir)
   rescue
@@ -699,8 +777,93 @@ defmodule Eoo.OpenOffice do
 
   # ── 解密 ────────────────────────────────────────────────
 
-  defp decrypt_content(_tmpdir, _password) do
-    # TODO: Implement ODS decryption
-    :ok
+  defp decrypt_content(tmpdir, password) do
+    manifest_path = Path.join([tmpdir, "META-INF", "manifest.xml"])
+
+    unless File.exists?(manifest_path) do
+      raise ArgumentError, "file missing required META-INF/manifest.xml"
+    end
+
+    manifest_raw = File.read!(manifest_path)
+    stripped = strip_ods_namespaces(manifest_raw)
+    {manifest_doc, _} = :xmerl_scan.string(String.to_charlist(stripped))
+
+    encryption_data =
+      find_all_elements(manifest_doc, "encryption-data")
+      |> List.first()
+
+    if is_nil(encryption_data) do
+      :ok
+    else
+      algorithm_node = find_child(encryption_data, "algorithm")
+      key_derivation_node = find_child(encryption_data, "key-derivation")
+      start_key_gen_node = find_child(encryption_data, "start-key-generation")
+
+      unless algorithm_node && key_derivation_node && start_key_gen_node do
+        raise ArgumentError, "manifest.xml missing encryption-data elements"
+      end
+
+      alg_name = get_attr(algorithm_node, "algorithm-name") || ""
+      iv_b64 = get_attr(algorithm_node, "initialisation-vector") || ""
+      kd_name = get_attr(key_derivation_node, "key-derivation-name") || ""
+      iter_str = get_attr(key_derivation_node, "iteration-count") || "0"
+      salt_b64 = get_attr(key_derivation_node, "salt") || ""
+      kg_name = get_attr(start_key_gen_node, "start-key-generation-name") || ""
+
+      unless alg_name == "http://www.w3.org/2001/04/xmlenc#aes256-cbc" do
+        raise ArgumentError, "Unknown algorithm #{alg_name}"
+      end
+
+      unless kd_name == "PBKDF2" do
+        raise ArgumentError, "Unknown key derivation #{kd_name}"
+      end
+
+      iv = Base.decode64!(iv_b64)
+      salt = Base.decode64!(salt_b64)
+      iterations = String.to_integer(iter_str)
+
+      hashed_pw =
+        case kg_name do
+          "http://www.w3.org/2000/09/xmldsig#sha256" -> :crypto.hash(:sha256, password)
+          _ -> raise ArgumentError, "Unknown key generation #{kg_name}"
+        end
+
+      key = :crypto.pbkdf2_hmac(:sha, hashed_pw, salt, iterations, 32)
+
+      content_path = Path.join(tmpdir, "content.xml")
+      encrypted = File.read!(content_path)
+
+      decrypted = :crypto.crypto_one_time(:aes_256_cbc, key, iv, encrypted, false)
+      unpadded = strip_pkcs7(decrypted)
+
+      # Raw inflate (deflate, wbits = -15)
+      z = :zlib.open()
+      :zlib.inflateInit(z, -15)
+      decompressed = :zlib.inflate(z, unpadded)
+      :zlib.inflateEnd(z)
+
+      File.write!(content_path, decompressed)
+      :ok
+    end
+  end
+
+  defp find_child(elem, tag) do
+    elem |> children_elements() |> Enum.find(fn c -> name(c) == tag end)
+  end
+
+  defp strip_pkcs7(data) do
+    n = byte_size(data)
+
+    if n == 0 do
+      data
+    else
+      pad = :binary.at(data, n - 1)
+
+      if pad > 0 and pad <= 16 and pad <= n do
+        binary_part(data, 0, n - pad)
+      else
+        data
+      end
+    end
   end
 end

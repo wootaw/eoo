@@ -3,8 +3,17 @@ defmodule Eoo.Excelx.Cell.Number do
   数值单元格类型。处理整数、浮点数、百分比格式。
   """
 
-  defstruct [:value, :formula, :style, :coordinate, :hyperlink,
-             :format, :cell_value, :cell_type, default_type: :float]
+  defstruct [
+    :value,
+    :formula,
+    :style,
+    :coordinate,
+    :hyperlink,
+    :format,
+    :cell_value,
+    :cell_type,
+    default_type: :float
+  ]
 
   @type t :: %__MODULE__{
           value: number(),

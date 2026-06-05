@@ -11,6 +11,7 @@ defmodule Eoo.Formatters.Matrix do
     - `:from_row` / `:to_row` - 行范围
     - `:from_column` / `:to_column` - 列范围
   """
+  @spec to_matrix(term(), keyword()) :: [[any()]]
   def to_matrix(spreadsheet, opts \\ []) do
     m = spreadsheet.__struct__
     sheet = Keyword.get(opts, :sheet, apply(m, :default_sheet, [spreadsheet]))

@@ -3,8 +3,16 @@ defmodule Eoo.Excelx.Cell.Empty do
   空单元格类型。
   """
 
-  defstruct [:coordinate, value: nil, formula: nil, style: nil,
-             hyperlink: nil, cell_value: nil, cell_type: nil, default_type: nil]
+  defstruct [
+    :coordinate,
+    value: nil,
+    formula: nil,
+    style: nil,
+    hyperlink: nil,
+    cell_value: nil,
+    cell_type: nil,
+    default_type: nil
+  ]
 
   @type t :: %__MODULE__{
           coordinate: {pos_integer(), pos_integer()} | nil,

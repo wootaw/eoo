@@ -41,17 +41,21 @@ defmodule Eoo.Excelx.Sheet do
     tmpdir = shared.dir
     idx = sheet_index + 1
 
-    sheet_file = Enum.at(shared.sheet_files, sheet_index) ||
-      Path.join(tmpdir, "roo_sheet#{idx}")
+    sheet_file =
+      Enum.at(shared.sheet_files, sheet_index) ||
+        Path.join(tmpdir, "roo_sheet#{idx}")
 
-    rels_file = Enum.at(shared.rels_files, sheet_index) ||
-      Path.join(tmpdir, "roo_rels#{idx}")
+    rels_file =
+      Enum.at(shared.rels_files, sheet_index) ||
+        Path.join(tmpdir, "roo_rels#{idx}")
 
-    comments_file = Enum.at(shared.comments_files, sheet_index) ||
-      Path.join(tmpdir, "roo_comments#{idx}")
+    comments_file =
+      Enum.at(shared.comments_files, sheet_index) ||
+        Path.join(tmpdir, "roo_comments#{idx}")
 
-    image_rel_file = Enum.at(shared.image_rels, sheet_index) ||
-      Path.join(tmpdir, "roo_image_rels#{idx}")
+    image_rel_file =
+      Enum.at(shared.image_rels, sheet_index) ||
+        Path.join(tmpdir, "roo_image_rels#{idx}")
 
     rels = Eoo.Excelx.Relationships.new(rels_file)
     comments = Eoo.Excelx.Comments.new(comments_file)
