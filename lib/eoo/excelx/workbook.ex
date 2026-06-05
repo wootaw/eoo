@@ -40,18 +40,24 @@ defmodule Eoo.Excelx.Workbook do
     |> Enum.reduce(%{}, fn dn, acc ->
       name = XML.attr(dn, "name")
       text = XML.text(dn) || ""
+
       case String.split(text, "!$", parts: 2) do
         [sheet, coords] ->
           case String.split(coords, "$") do
             [col, row] ->
               Map.put(acc, name, %{
-                name: name, sheet: sheet,
+                name: name,
+                sheet: sheet,
                 row: String.to_integer(row),
                 col: Eoo.Utils.letter_to_number(col)
               })
-            _ -> acc
+
+            _ ->
+              acc
           end
-        _ -> acc
+
+        _ ->
+          acc
       end
     end)
   end
@@ -62,18 +68,23 @@ defmodule Eoo.Excelx.Workbook do
     direct = if name == t, do: [elem], else: []
     direct ++ find_all(children, tag)
   end
+
   defp find_all(list, tag) when is_list(list) do
     Enum.flat_map(list, &find_all(&1, tag))
   end
+
   defp find_all(_, _), do: []
 
   def base_date(%__MODULE__{doc: doc}) do
     result = ~D[1899-12-30]
+
     case XML.children_by_tag(doc, "workbookPr") do
       [pr | _] ->
         date1904 = XML.attr(pr, "date1904") || ""
         if date1904 =~ ~r/true|1/i, do: ~D[1904-01-01], else: result
-      _ -> result
+
+      _ ->
+        result
     end
   end
 

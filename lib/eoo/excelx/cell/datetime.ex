@@ -3,8 +3,17 @@ defmodule Eoo.Excelx.Cell.DateTime do
   日期时间单元格类型。
   """
 
-  defstruct [:value, :formula, :style, :coordinate, :hyperlink,
-             :format, :cell_value, :cell_type, default_type: :datetime]
+  defstruct [
+    :value,
+    :formula,
+    :style,
+    :coordinate,
+    :hyperlink,
+    :format,
+    :cell_value,
+    :cell_type,
+    default_type: :datetime
+  ]
 
   @type t :: %__MODULE__{
           value: DateTime.t(),

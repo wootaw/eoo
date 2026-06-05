@@ -31,13 +31,16 @@ defmodule Eoo.Excelx.SharedStrings do
         items when is_list(items) ->
           item = Enum.at(items, index)
           item && String.contains?(item, "<")
-        _ -> false
+
+        _ ->
+          false
       end
   end
 
   defp extract_shared_strings(%__MODULE__{path: path}) do
     unless File.exists?(path), do: []
     doc = File.read!(path) |> XML.parse()
+
     find_all(doc, "si")
     |> Enum.map(&extract_si_text/1)
   end
@@ -59,6 +62,7 @@ defmodule Eoo.Excelx.SharedStrings do
   defp extract_html(%__MODULE__{path: path}) do
     unless File.exists?(path), do: []
     doc = File.read!(path) |> XML.parse()
+
     find_all(doc, "si")
     |> Enum.map(fn si ->
       "<html>" <>
@@ -69,20 +73,38 @@ defmodule Eoo.Excelx.SharedStrings do
 
   defp extract_r_html(r_elem) do
     xml_elems = %{sub: false, sup: false, b: false, i: false, u: false}
-    xml_elems = case XML.children_by_tag(r_elem, "rPr") do
-      [rpr | _] ->
-        val = XML.attr(rpr, "val") || ""
-        xml_elems
-        |> Map.put(:b, XML.children_by_tag(rpr, "b") != [])
-        |> Map.put(:i, XML.children_by_tag(rpr, "i") != [])
-        |> Map.put(:u, XML.children_by_tag(rpr, "u") != [])
-        |> Map.put(:sub, val == "subscript")
-        |> Map.put(:sup, val == "superscript")
-      _ -> xml_elems
-    end
+
+    xml_elems =
+      case XML.children_by_tag(r_elem, "rPr") do
+        [rpr | _] ->
+          val = XML.attr(rpr, "val") || ""
+
+          xml_elems
+          |> Map.put(:b, XML.children_by_tag(rpr, "b") != [])
+          |> Map.put(:i, XML.children_by_tag(rpr, "i") != [])
+          |> Map.put(:u, XML.children_by_tag(rpr, "u") != [])
+          |> Map.put(:sub, val == "subscript")
+          |> Map.put(:sup, val == "superscript")
+
+        _ ->
+          xml_elems
+      end
+
     text = get_child_text(r_elem, "t") || ""
-    open = xml_elems |> Enum.filter(fn {_, v} -> v end) |> Enum.map(fn {k, _} -> "<#{k}>" end) |> Enum.join("")
-    close = xml_elems |> Enum.reverse() |> Enum.filter(fn {_, v} -> v end) |> Enum.map(fn {k, _} -> "</#{k}>" end) |> Enum.join("")
+
+    open =
+      xml_elems
+      |> Enum.filter(fn {_, v} -> v end)
+      |> Enum.map(fn {k, _} -> "<#{k}>" end)
+      |> Enum.join("")
+
+    close =
+      xml_elems
+      |> Enum.reverse()
+      |> Enum.filter(fn {_, v} -> v end)
+      |> Enum.map(fn {k, _} -> "</#{k}>" end)
+      |> Enum.join("")
+
     open <> text <> close
   end
 
@@ -93,8 +115,10 @@ defmodule Eoo.Excelx.SharedStrings do
     acc = if to_string(name) == tag, do: acc ++ [elem], else: acc
     Enum.reduce(children, acc, fn c, a -> do_find(c, tag, a) end)
   end
+
   defp do_find(list, tag, acc) when is_list(list) do
     Enum.reduce(list, acc, fn c, a -> do_find(c, tag, a) end)
   end
+
   defp do_find(_, _, acc), do: acc
 end

@@ -3,8 +3,16 @@ defmodule Eoo.Excelx.Cell.String do
   字符串单元格类型。
   """
 
-  defstruct [:value, :formula, :style, :coordinate, :hyperlink,
-             cell_value: nil, cell_type: nil, default_type: :string]
+  defstruct [
+    :value,
+    :formula,
+    :style,
+    :coordinate,
+    :hyperlink,
+    cell_value: nil,
+    cell_type: nil,
+    default_type: :string
+  ]
 
   @type t :: %__MODULE__{
           value: String.t(),

@@ -3,8 +3,16 @@ defmodule Eoo.Excelx.Cell.Boolean do
   布尔单元格类型。
   """
 
-  defstruct [:value, :formula, :style, :coordinate, :hyperlink,
-             :cell_value, :cell_type, default_type: :boolean]
+  defstruct [
+    :value,
+    :formula,
+    :style,
+    :coordinate,
+    :hyperlink,
+    :cell_value,
+    :cell_type,
+    default_type: :boolean
+  ]
 
   @type t :: %__MODULE__{
           value: boolean(),

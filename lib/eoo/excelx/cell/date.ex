@@ -3,8 +3,17 @@ defmodule Eoo.Excelx.Cell.Date do
   日期单元格类型。
   """
 
-  defstruct [:value, :formula, :style, :coordinate, :hyperlink,
-             :format, :cell_value, :cell_type, default_type: :date]
+  defstruct [
+    :value,
+    :formula,
+    :style,
+    :coordinate,
+    :hyperlink,
+    :format,
+    :cell_value,
+    :cell_type,
+    default_type: :date
+  ]
 
   @type t :: %__MODULE__{
           value: Date.t(),

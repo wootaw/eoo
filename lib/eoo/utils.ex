@@ -14,6 +14,7 @@ defmodule Eoo.Utils do
   end
 
   defp do_number_to_letter(0, acc), do: acc
+
   defp do_number_to_letter(num, acc) do
     num_minus_1 = num - 1
     index = rem(num_minus_1, 26)
@@ -96,13 +97,18 @@ defmodule Eoo.Utils do
   @spec num_cells_in_range(String.t()) :: pos_integer()
   def num_cells_in_range(str) do
     cells = String.split(str, ":")
+
     case cells do
-      [_single] -> 1
+      [_single] ->
+        1
+
       [c1, c2] ->
         a = extract_coordinate(c1)
         b = extract_coordinate(c2)
         (b.row - a.row + 1) * (b.column - a.column + 1)
-      _ -> raise ArgumentError, "invalid range: #{str}"
+
+      _ ->
+        raise ArgumentError, "invalid range: #{str}"
     end
   end
 
@@ -190,7 +196,8 @@ defmodule Eoo.Utils do
 
   defp format_time(h, m, s) do
     String.pad_leading(Integer.to_string(h), 2, "0") <>
-      ":" <> String.pad_leading(Integer.to_string(m), 2, "0") <>
+      ":" <>
+      String.pad_leading(Integer.to_string(m), 2, "0") <>
       ":" <> String.pad_leading(Integer.to_string(s), 2, "0")
   end
 

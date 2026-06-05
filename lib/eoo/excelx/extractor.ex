@@ -11,6 +11,7 @@ defmodule Eoo.Excelx.Extractor do
     doc = File.read!(path) |> Eoo.XML.parse()
     %{ext | doc_cache: doc}
   end
+
   def doc(%__MODULE__{doc_cache: doc}), do: doc
 
   def doc_exists?(%__MODULE__{path: nil}), do: false

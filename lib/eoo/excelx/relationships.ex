@@ -11,6 +11,7 @@ defmodule Eoo.Excelx.Relationships do
 
   def get(%__MODULE__{relationships: nil} = rels, id),
     do: get(%{rels | relationships: extract_relationships(rels)}, id)
+
   def get(%__MODULE__{relationships: rels}, id),
     do: Map.get(rels, id)
 
@@ -18,13 +19,16 @@ defmodule Eoo.Excelx.Relationships do
   def to_map(%__MODULE__{relationships: rels}), do: rels
 
   def include_type?(%__MODULE__{} = rels, type) do
-    rels |> to_map() |> Enum.any?(fn {_, rel} ->
+    rels
+    |> to_map()
+    |> Enum.any?(fn {_, rel} ->
       type_str = rel["Type"] || ""
       String.contains?(type_str, type)
     end)
   end
 
   defp extract_relationships(%__MODULE__{path: nil}), do: %{}
+
   defp extract_relationships(%__MODULE__{path: path}) do
     unless File.exists?(path) do
       %{}
@@ -51,8 +55,10 @@ defmodule Eoo.Excelx.Relationships do
     acc = if to_string(name) == tag, do: acc ++ [elem], else: acc
     Enum.reduce(children, acc, fn c, a -> do_find(c, tag, a) end)
   end
+
   defp do_find(list, tag, acc) when is_list(list) do
     Enum.reduce(list, acc, fn c, a -> do_find(c, tag, a) end)
   end
+
   defp do_find(_, _, acc), do: acc
 end

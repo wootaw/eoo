@@ -13,6 +13,7 @@ defmodule Eoo.Excelx.Comments do
   def comments(%__MODULE__{comments_map: cmts}), do: cmts
 
   defp extract_comments(%__MODULE__{path: nil}), do: %{}
+
   defp extract_comments(%__MODULE__{path: path}) do
     unless File.exists?(path) do
       %{}
@@ -36,9 +37,11 @@ defmodule Eoo.Excelx.Comments do
     acc = if to_string(name) == tag, do: acc ++ [elem], else: acc
     Enum.reduce(children, acc, fn c, a -> do_find_elements(c, tag, a) end)
   end
+
   defp do_find_elements(list, tag, acc) when is_list(list) do
     Enum.reduce(list, acc, fn c, a -> do_find_elements(c, tag, a) end)
   end
+
   defp do_find_elements(_, _, acc), do: acc
 
   defp extract_comment_text(elem) do
@@ -52,7 +55,11 @@ defmodule Eoo.Excelx.Comments do
   defp extract_text_content({:xmlElement, _, _, _, _, _, _, _, children, _, _, _}) do
     extract_texts(children)
   end
+
   defp extract_texts([]), do: ""
-  defp extract_texts([{:xmlText, _, _, _, text, _} | rest]), do: List.to_string(text) <> extract_texts(rest)
+
+  defp extract_texts([{:xmlText, _, _, _, text, _} | rest]),
+    do: List.to_string(text) <> extract_texts(rest)
+
   defp extract_texts([_ | rest]), do: extract_texts(rest)
 end

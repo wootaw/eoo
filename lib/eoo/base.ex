@@ -32,8 +32,16 @@ defmodule Eoo.Base do
   @callback labels(term()) :: [{String.t(), {pos_integer(), pos_integer(), String.t()}}]
 
   @optional_callbacks [
-    formula: 4, formula?: 4, formulas: 2, font: 4,
-    hyperlink: 4, hyperlink?: 4, comment: 4, comments: 2, label: 2, labels: 1
+    formula: 4,
+    formula?: 4,
+    formulas: 2,
+    font: 4,
+    hyperlink: 4,
+    hyperlink?: 4,
+    comment: 4,
+    comments: 2,
+    label: 2,
+    labels: 1
   ]
 
   # ── 动态分发 ────────────────────────────────────────────
@@ -48,29 +56,37 @@ defmodule Eoo.Base do
   def info(spreadsheet) do
     m = mod(spreadsheet)
     sheet_list = apply(m, :sheets, [spreadsheet])
-    info_text = "File: #{inspect(spreadsheet)}\n" <>
-      "Number of sheets: #{length(sheet_list)}\n" <>
-      "Sheets: #{Enum.join(sheet_list, ", ")}\n"
+
+    info_text =
+      "File: #{inspect(spreadsheet)}\n" <>
+        "Number of sheets: #{length(sheet_list)}\n" <>
+        "Sheets: #{Enum.join(sheet_list, ", ")}\n"
 
     {final_text, _} =
       Enum.reduce(sheet_list, {info_text, 1}, fn sheet, {acc, n} ->
         ss = apply(m, :default_sheet, [spreadsheet, sheet]) |> elem(1)
         fr = apply(m, :first_row, [ss])
+
         sheet_info =
           case fr do
-            nil -> "  - empty -"
+            nil ->
+              "  - empty -"
+
             _ ->
               lr = apply(m, :last_row, [ss])
               fc = apply(m, :first_column, [ss])
               lc = apply(m, :last_column, [ss])
+
               "  First row: #{fr}\n" <>
-              "  Last row: #{lr}\n" <>
-              "  First column: #{Eoo.Utils.number_to_letter(fc)}\n" <>
-              "  Last column: #{Eoo.Utils.number_to_letter(lc)}"
+                "  Last row: #{lr}\n" <>
+                "  First column: #{Eoo.Utils.number_to_letter(fc)}\n" <>
+                "  Last column: #{Eoo.Utils.number_to_letter(lc)}"
           end
+
         sep = if sheet != List.last(sheet_list), do: "\n", else: ""
         {acc <> "Sheet #{n}:\n#{sheet_info}#{sep}", n + 1}
       end)
+
     final_text
   end
 
@@ -81,6 +97,7 @@ defmodule Eoo.Base do
   """
   def each_with_pagename(spreadsheet, fun) when is_function(fun, 2) do
     m = mod(spreadsheet)
+
     for sheet_name <- apply(m, :sheets, [spreadsheet]) do
       ss = apply(m, :default_sheet, [spreadsheet, sheet_name]) |> elem(1)
       fun.(sheet_name, ss)
@@ -113,6 +130,7 @@ defmodule Eoo.Base do
           Enum.reduce(headers, %{}, fn {key, col}, acc ->
             Map.put(acc, key, apply(m, :cell, [spreadsheet, row_num, col]))
           end)
+
         fun.(row_map)
       end
     end
@@ -160,6 +178,7 @@ defmodule Eoo.Base do
     first..last
     |> Enum.find(fn col ->
       cell_val = apply(m, :cell, [spreadsheet, row_num, col])
+
       if is_struct(query, Regex) do
         cell_val && String.match?(to_string(cell_val), query)
       else
@@ -172,6 +191,7 @@ defmodule Eoo.Base do
     1..100
     |> Enum.find(fn row_num ->
       row = apply(m, :row, [spreadsheet, row_num])
+
       Enum.all?(queries, fn q ->
         Enum.any?(row, fn cell ->
           cell && String.match?(to_string(cell), q)

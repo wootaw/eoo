@@ -3,8 +3,18 @@ defmodule Eoo.Excelx.Cell.Time do
   时间单元格类型。
   """
 
-  defstruct [:value, :formula, :style, :coordinate, :hyperlink,
-             :format, :datetime, :cell_value, :cell_type, default_type: :time]
+  defstruct [
+    :value,
+    :formula,
+    :style,
+    :coordinate,
+    :hyperlink,
+    :format,
+    :datetime,
+    :cell_value,
+    :cell_type,
+    default_type: :time
+  ]
 
   @type t :: %__MODULE__{
           value: integer(),

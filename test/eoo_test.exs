@@ -262,4 +262,22 @@ defmodule EooTest do
     assert yaml =~ "file: test.csv"
     assert yaml =~ "sheet: default"
   end
+
+  # ── Encryption Tests ────────────────────────────────────
+
+  test "ODS encrypted file decryption" do
+    {:ok, ods} = Eoo.OpenOffice.open("test/test_encrypted.ods", password: "testpass123")
+    assert Eoo.OpenOffice.sheets(ods) == ["Sheet1"]
+    assert Eoo.OpenOffice.cell(ods, 1, 1) == "Secret Data"
+    assert Eoo.OpenOffice.cell(ods, 1, 2) == 42
+    Eoo.OpenOffice.close(ods)
+  end
+
+  test "ODS encrypted wrong password" do
+    {:error, _} = Eoo.OpenOffice.open("test/test_encrypted.ods", password: "wrongpassword")
+  end
+
+  test "ODS encrypted no password" do
+    {:error, _} = Eoo.OpenOffice.open("test/test_encrypted.ods")
+  end
 end
