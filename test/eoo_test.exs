@@ -280,4 +280,12 @@ defmodule EooTest do
   test "ODS encrypted no password" do
     {:error, _} = Eoo.OpenOffice.open("test/test_encrypted.ods")
   end
+
+  # ── Store XLSX Tests ────────────────────────────────────────
+
+  test "store.xlsx has four sheets: 订单, 退货, Sheet1, 销售人员" do
+    {:ok, xlsx} = Eoo.Excelx.open("test/store.xlsx")
+    assert Eoo.Excelx.sheets(xlsx) == ["订单", "退货", "Sheet1", "销售人员"]
+    Eoo.Excelx.close(xlsx)
+  end
 end
