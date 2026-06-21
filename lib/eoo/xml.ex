@@ -14,8 +14,18 @@ defmodule Eoo.XML do
     stripped = Regex.replace(~r{<\w+:}, stripped, "<")
     stripped = Regex.replace(~r{</\w+:}, stripped, "</")
 
-    {elements, _} = :xmerl_scan.string(String.to_charlist(stripped))
+    # 将非 ASCII 字符转义为 XML 数值实体 (&#NNN;)，以支持中文等字符
+    escaped = escape_non_ascii(stripped)
+
+    {elements, _} = :xmerl_scan.string(String.to_charlist(escaped))
     elements
+  end
+
+  defp escape_non_ascii(binary) do
+    Regex.replace(~r/[^\x00-\x7F]/u, binary, fn c ->
+      <<cp::utf8>> = c
+      "&#" <> Integer.to_string(cp) <> ";"
+    end)
   end
 
   def parse_xml(xml_binary), do: parse(xml_binary)

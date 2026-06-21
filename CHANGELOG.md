@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### 修复
+
+- **XML 解析** — 修复 `:xmerl_scan` 无法处理中文等非 Latin-1 字符的问题，在解析前自动将非 ASCII 字符转义为 XML 数值实体
+
+### 测试
+
+- 新增 `store.xlsx` 读取测试，验证中文工作表名称的正确解析
+
 ## 0.1.0 (2026-06-04)
 
 Eoo 初始发布 — Ruby Roo gem 的 Elixir 移植版。
